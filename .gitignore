@@ -1,0 +1,34 @@
+# Project-specific
+reference/
+.planning/
+CLAUDE.md
+journal/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Clojure
+.cpcache/
+.clj-kondo/
+.lsp/
+target/
+pom.xml
+*.jar
+*.class
+
+# Editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
