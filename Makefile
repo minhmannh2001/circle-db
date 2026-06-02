@@ -9,6 +9,7 @@ test-clojure:
 		 (require '[circle-db.constructs-test]) \
 		 (require '[circle-db.storage-test]) \
 		 (require '[circle-db.eavt-test]) \
+		 (require '[circle-db.indexes-test]) \
 		 (t/run-all-tests #\"circle-db.*\")"
 
 test: test-python test-clojure

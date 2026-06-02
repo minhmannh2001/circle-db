@@ -1,3 +1,5 @@
+# EAVT: entity_id → attribute → value
+# Fast for: "what are all attributes of entity X?"
 def index_add(index, datom):
     entity = index.get(datom.entity_id, {})
     return {**index, datom.entity_id: {**entity, datom.attr_name: datom.value}}
