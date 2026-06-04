@@ -11,6 +11,7 @@ test-clojure:
 		 (require '[circle-db.eavt-test]) \
 		 (require '[circle-db.indexes-test]) \
 		 (require '[circle-db.db-test]) \
+		 (require '[circle-db.transactions-test]) \
 		 (t/run-all-tests #\"circle-db.*\")"
 
 test: test-python test-clojure
