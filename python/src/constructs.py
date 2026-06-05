@@ -31,7 +31,7 @@ class Layer:
 
 @dataclass
 class Entity:
-    id: int
+    id: int | str  # str used as sentinel ":db/no-id-yet" before ID is assigned
     attrs: dict = field(default_factory=dict)
 
 
