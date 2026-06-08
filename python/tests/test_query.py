@@ -1,6 +1,6 @@
 from constructs import Datom, make_db, Entity, Attribute
 from db import add_entity
-from query import transform, plan
+from query import transform, plan, execute, unify, q
 
 
 def make_attr(value, type=":db/string", cardinality=":db/single"):
@@ -109,3 +109,95 @@ def test_plan_value_known_scans_veat_range():
     plan_fn = plan([["?e", "?a", "Alice"]], db.layers[-1])
     result = plan_fn()
     assert result == {1: {"name"}}
+
+
+# --- execute ---
+
+def test_execute_entity_unknown_returns_bindings():
+    db = _db_with_alice()
+    layer = db.layers[-1]
+    result = execute([["?e", "name", "Alice"]], layer)
+    assert result == [{"?e": 1}]
+
+
+def test_execute_value_variable_bound_in_range_scan():
+    db = _db_with_alice()
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Bob")}))
+    layer = db.layers[-1]
+    result = execute([["?e", "name", "?name"]], layer)
+    assert {"?e": 1, "?name": "Alice"} in result
+    assert {"?e": 2, "?name": "Bob"} in result
+    assert len(result) == 2
+
+
+def test_execute_two_clause_and_intersects_entity_sets():
+    db = make_db()
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Alice"), "age": make_attr(30)}))
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Bob"),   "age": make_attr(25)}))
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Alice"), "age": make_attr(25)}))
+    layer = db.layers[-1]
+    result = execute([["?e", "name", "Alice"], ["?e", "age", 30]], layer)
+    assert result == [{"?e": 1}]
+
+
+# --- unify ---
+
+def test_unify_projects_single_find_var():
+    bindings = [{"?e": 1, "?name": "Alice"}, {"?e": 2, "?name": "Bob"}]
+    assert sorted(unify(bindings, ["?e"])) == [[1], [2]]
+
+
+def test_unify_projects_multiple_find_vars_in_order():
+    bindings = [{"?e": 1, "?name": "Alice"}, {"?e": 2, "?name": "Bob"}]
+    assert sorted(unify(bindings, ["?name", "?e"])) == [["Alice", 1], ["Bob", 2]]
+
+
+# --- q ---
+
+def test_q_single_clause_returns_matching_entities():
+    db = make_db()
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Alice")}))
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Bob")}))
+    assert q({"find": ["?e"], "where": [["?e", "name", "Alice"]]}, db) == [[1]]
+
+
+def test_q_two_clause_where_returns_only_entities_matching_all_clauses():
+    db = make_db()
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Alice"), "age": make_attr(30)}))
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Bob"),   "age": make_attr(25)}))
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Alice"), "age": make_attr(25)}))
+    assert q({"find": ["?e"], "where": [["?e", "name", "Alice"], ["?e", "age", 30]]}, db) == [[1]]
+
+
+def test_q_historical_layer_returns_old_state():
+    db = make_db()
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Alice")}))
+    historical_db = db
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Bob")}))
+    assert len(q({"find": ["?e", "?name"], "where": [["?e", "name", "?name"]]}, db)) == 2
+    assert q({"find": ["?e", "?name"], "where": [["?e", "name", "?name"]]}, historical_db) == [[1, "Alice"]]
+
+
+def test_q_attr_unknown_returns_entity_and_attr():
+    db = make_db()
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Alice"), "age": make_attr(30)}))
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Bob")}))
+    assert q({"find": ["?e", "?a"], "where": [["?e", "?a", "Alice"]]}, db) == [[1, "name"]]
+
+
+def test_q_attr_unknown_expands_multiple_attrs_per_entity():
+    db = make_db()
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={
+        "name":     make_attr("Alice"),
+        "nickname": make_attr("Alice"),
+    }))
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Bob")}))
+    assert sorted(q({"find": ["?e", "?a"], "where": [["?e", "?a", "Alice"]]}, db)) == [[1, "name"], [1, "nickname"]]
+
+
+def test_q_attr_unknown_combined_with_other_clause():
+    db = make_db()
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Alice"), "age": make_attr(30)}))
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Bob"),   "age": make_attr(25)}))
+    db = add_entity(db, Entity(id=":db/no-id-yet", attrs={"name": make_attr("Alice"), "age": make_attr(25)}))
+    assert q({"find": ["?e", "?a"], "where": [["?e", "?a", "Alice"], ["?e", "age", 30]]}, db) == [[1, "name"]]
